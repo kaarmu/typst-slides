@@ -6,9 +6,37 @@
 #let subslide = counter("subslide")
 #let logical-slide = counter("logical-slide")
 #let repetitions = counter("repetitions")
-#let global-theme = state("global-theme", none)
 
 #let new-section(name) = section.update(name)
+
+// =================================
+// ============ LAYOUTS ============
+// =================================
+
+// Layout: ..content -> content
+//
+// Style: (string, content) -> content
+
+#let no-layout(body) = body
+
+#let default-layout(body) = {
+  show: block.with(inset: 1cm)
+  body
+}
+
+#let default-style(name, body) = {
+  if name.starts-with("title") {
+    set text(
+      font: "Arial",
+      size: 32pt,
+    )
+  } else if name.starts-with("body") {
+    set text(
+      font: "Arial",
+      size: 24pt,
+    )
+  }
+}
 
 // =================================
 // ======== DYNAMIC CONTENT ========
@@ -176,135 +204,24 @@
 
 #let slide(
     max-repetitions: 10,
-    theme-variant: "default",
-    override-theme: none,
-    ..args
+    layout: default-layout,
+    ..content,
 ) = {
-    pagebreak(weak: true)
-    logical-slide.step()
-    locate( loc => {
-        subslide.update(1)
-        repetitions.update(1)
+  pagebreak(weak: true)
+  logical-slide.step()
+  subslide.update(1)
+  repetitions.update(1)
 
-        let slide-content = global-theme.at(loc).variants.at(theme-variant)
-        if override-theme != none {
-            slide-content = override-theme
-        }
-        let slide-info = args.named()
-        let bodies = args.pos()
-
-        for _ in range(max-repetitions) {
-            locate( loc-inner => {
-                let curr-subslide = subslide.at(loc-inner).first()
-                if curr-subslide <= repetitions.at(loc-inner).first() {
-                    if curr-subslide > 1 { pagebreak(weak: true) }
-
-                    slide-content(slide-info, bodies)
-                }
-            })
-            subslide.step()
-        }
-    })
-}
-
-// ===============================
-// ======== DEFAULT THEME ========
-// ===============================
-
-#let slides-default-theme(color: teal) = data => {
-    let title-slide = {
-        align(center + horizon)[
-            #block(
-                stroke: ( y: 1mm + color ),
-                inset: 1em,
-                breakable: false,
-                [
-                    #text(1.3em)[*#data.title*] \
-                    #{
-                        if data.subtitle != none {
-                            parbreak()
-                            text(.9em)[#data.subtitle]
-                        }
-                    }
-                ]
-            )
-            #set text(size: .8em)
-            #grid(
-                columns: (1fr,) * calc.min(data.authors.len(), 3),
-                column-gutter: 1em,
-                row-gutter: 1em,
-                ..data.authors
-            )
-            #v(1em)
-            #data.date
-        ]
-    }
-
-    let default(slide-info, bodies) = {
-        if bodies.len() != 1 {
-            panic("default variant of default theme only supports one body per slide")
-        }
-        let body = bodies.first()
-
-        let decoration(position, body) = {
-            let border = 1mm + color
-            let strokes = (
-                header: ( bottom: border ),
-                footer: ( top: border )
-            )
-            block(
-                stroke: strokes.at(position),
-                width: 100%,
-                inset: .3em,
-                text(.5em, body)
-            )
-        }
-
-
-        // header
-        decoration("header", section.display())
-
-        if "title" in slide-info {
-            block(
-                width: 100%, inset: (x: 2em), breakable: false,
-                outset: 0em,
-                heading(level: 1, slide-info.title)
-            )
-        }
-        
-        v(1fr)
-        block(
-            width: 100%, inset: (x: 2em), breakable: false, outset: 0em,
-            body
-        )
-        v(2fr)
-
-        // footer
-        decoration("footer")[
-            #data.short-authors #h(10fr)
-            #data.short-title #h(1fr)
-            #data.date #h(10fr)
-            #logical-slide.display()
-        ]
-    }
-
-    let wake-up(slide-info, bodies) = {
-        if bodies.len() != 1 {
-            panic("wake up variant of default theme only supports one body per slide")
-        }
-        let body = bodies.first()
-
-        block(
-            width: 100%, height: 100%, inset: 2em, breakable: false, outset: 0em,
-            fill: color,
-            text(size: 1.5em, fill: white, {v(1fr); body; v(1fr)})
-        )
-    }
-
-    (
-        title-slide: title-slide,
-        variants: ( "default": default, "wake up": wake-up, ),
-    )
+  for _ in range(max-repetitions) {
+      locate( loc-inner => {
+          let curr-subslide = subslide.at(loc-inner).first()
+          if curr-subslide <= repetitions.at(loc-inner).first() {
+              if curr-subslide > 1 { pagebreak(weak: true) }
+              layout(..content)
+          }
+      })
+      subslide.step()
+  }
 }
 
 // ===================================
@@ -312,66 +229,12 @@
 // ===================================
 
 #let slides(
-    title: none,
-    authors: none,
-    subtitle: none,
-    short-title: none,
-    short-authors: none,
-    date: none,
-    theme: slides-default-theme(),
-    typography: (:),
+    paper: "presentation-16-9",
     body
 ) = {
-    if "text-size" not in typography {
-        typography.text-size = 25pt
-    }
-    if "paper" not in typography {
-        typography.paper = "presentation-16-9"
-    }
-    if "text-font" not in typography {
-        typography.text-font = (
-            "Inria Sans",
-            "Libertinus Sans",
-            "Latin Modern Sans",
-        )
-    }
-    if "math-font" not in typography {
-        typography.math-font = (
-            "GFS Neohellenic Math",
-            "Fira Math",
-            "TeX Gyre Pagella Math",
-            "Libertinus Math",
-        )
-    }
-
-    set text(
-        size: typography.text-size,
-        font: typography.text-font,
-    )
-    show math.equation: set text(font: typography.math-font)
-
-    set page(
-        paper: typography.paper,
-        margin: 0pt,
-    )
-
-    let data = (
-        title: title,
-        authors: if type(authors) == "array" {
-            authors
-        } else if type(authors) in ("string", "content") {
-            (authors, )
-        } else {
-            panic("authors must be an array, string, or content.")
-        },
-        subtitle: subtitle,
-        short-title: short-title,
-        short-authors: short-authors,
-        date: date,
-    )
-    let the-theme = theme(data)
-    global-theme.update(the-theme)
-
-    the-theme.title-slide
-    body
+  set page(
+      paper: paper,
+      margin: 0pt,
+  )
+  body
 }
